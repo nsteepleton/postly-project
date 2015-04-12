@@ -11,12 +11,7 @@ $MY_DB = "contrib_yzong"; # DATABASE NAME
 $DB_USER = "yzong"; # DATABASE USERNAME
 $DB_PW = "yzong@andrew"; # DATABASE PASSWORD
 
-
-
-
 # Don't need to change
-
-
 $salt = "15-501";
 
 ?>

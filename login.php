@@ -11,7 +11,7 @@ if(isset($_SESSION['auth']) && $_SESSION['auth'] == 1) {
 if(isset($_POST['username']) && isset($_POST['pw'])) {
 	$pw = hash_pw($_POST['pw']);
 	$dbh = db_connect($MY_HOST, $MY_DB_PORT, $MY_DB, $DB_USER, $DB_PW);
-	$res = login($dbh, $_POST['username'],$pw);
+	$res = login($dbh, $_POST['username'], $pw);
 	if($res['status'] == 1) {
 		session_login($res['userID']);
 		header("Location: ".$home."index.php");

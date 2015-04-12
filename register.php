@@ -12,7 +12,7 @@ if(isset($_POST['username']) && isset($_POST['pw'])) {
 	if ( preg_match('/^[A-Za-z0-9]+$/', $_POST['username']) ) {
 		$pw = hash_pw($_POST['pw']);
 		$dbh = db_connect($MY_HOST, $MY_DB_PORT, $MY_DB, $DB_USER, $DB_PW);
-		$res = register($dbh, $_POST['username'],$pw);
+		$res = register($dbh, $_POST['username'], $pw);
 		if($res['status'] == 1) {
 			session_login($res['userID']);
 			header("Location: ".$home."index.php");

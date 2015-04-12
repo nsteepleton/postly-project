@@ -1,7 +1,6 @@
 <?php
 
 include "config.php";
-
 /*
  * For all functions $dbh is a database connection
  */
@@ -10,12 +9,16 @@ include "config.php";
  * @return handle to database connection
  */
 function db_connect($host, $port, $db, $user, $pw) {
+    $dbh = pg_connect('host='.$host.' port='.$port.' dbname='
+        .$db.' user='.$user.' password='.$pw) or die('db connection failed');
+    return $dbh;
 }
 
 /*
  * Close database connection
  */ 
 function close_db_connection($dbh) {
+    pg_close($dbh);
 }
 
 /*
@@ -27,6 +30,20 @@ function close_db_connection($dbh) {
  * )
  */
 function login($dbh, $user, $pw) {
+    $query = <<<QUERY
+SELECT * FROM Users
+WHERE username=$1 AND password=$2;
+QUERY;
+    $result = pg_query_params($dbh, $query, array($user, $pw));
+    if (!$result or pg_num_rows($result) == 0) {
+        return array( 'status' => 0, 'userID' => null );
+    }
+    else {
+        $row = pg_fetch_array($result);
+        return array( 'status' => 1,
+                      'userID' => $row['username']
+                    );
+    }
 }
 
 /*
@@ -38,6 +55,17 @@ function login($dbh, $user, $pw) {
  * )
  */
 function register($dbh, $user, $pw) {
+    $query = <<<QUERY
+INSERT INTO Users
+VALUES ($1, $2);
+QUERY;
+    $result = pg_query_params($dbh, $query, array($user, $pw));
+    if (!$result) {
+        return array( 'status' => 0, 'userID' => null );
+    }
+    else {
+        return array( 'status' => 1, 'userID' => $user );
+    };
 }
 
 /*
@@ -243,6 +271,42 @@ function get_recommended_posts($dbh, $count = 10, $user) {
  * )
  */
 function reset_database($dbh) {
+    $query_cleanup = 'DROP TABLE IF EXISTS Likes, Post, Users;';
+    $query_users  = <<<QUERY
+CREATE TABLE Users (
+    username CHAR(50) NOT NULL,
+    password CHAR(50) NOT NULL,
+    PRIMARY KEY (username)
+);
+QUERY;
+    $query_post = <<<QUERY
+CREATE TABLE Post (
+    post_id INT NOT NULL,
+    tstamp TIMESTAMP NOT NULL,
+    username CHAR(50) NOT NULL,
+    bodytext CHAR(160) NOT NULL,
+    PRIMARY KEY(post_id)
+);
+QUERY;
+    $query_likes = <<<QUERY
+CREATE TABLE Likes (
+    username CHAR(50) NOT NULL,
+    post_id INT NOT NULL,
+    PRIMARY KEY(username, post_id),
+    FOREIGN KEY username REFERENCES Users ON DELETE CASCADE,
+    FOREIGN KEY post_id REFERENCES Post ON DELETE CASCADE
+);
+QUERY;
+    $result = pg_query($dbh, $query_cleanup);
+    $result &= pg_query($dbh, $query_users);
+    $result &= pg_query($dbh, $query_post);
+    $result &= pg_query($dbh, $query_likes);
+    if (!result) {
+        return array( 'status' => 0 );
+    }
+    else {
+        return array( 'status' => 1 );
+    }
 }
 
 ?>
