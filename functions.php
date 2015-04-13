@@ -44,7 +44,7 @@ QUERY;
 }
 
 /*
- * Register user with given password 
+ * Register user with given password hash
  * Return associative array of the form:
  * array(
  *		'status' =>   (1 for success and 0 for failure)
@@ -66,15 +66,32 @@ QUERY;
 }
 
 /*
- * Register user with given password 
+ * Submit post for given user
  * Return associative array of the form:
  * array(
  *		'status' =>   (1 for success and 0 for failure)
  * )
  */
 function post_post($dbh, $title, $msg, $me) {
+    $query = <<<QUERY
+SELECT MAX(post_id)
+FROM Post;
+QUERY;
+    $result = pg_query($dbh, $query);
+    if (!$result or pg_num_rows($result) == 0) {
+        return array( 'status' => 0 );
+    }
+    else {
+        $max_row = pg_fetch_array($result);
+        $max_id = ($max_row['max'] == null) ? 0 : $max_row['max'];
+    }
+    $query = <<<QUERY
+INSERT INTO Post
+VALUES ($4, now(), $3, $1, $2);
+QUERY;
+    $result = pg_query_params($dbh, $query, array($title, $msg, $me, $max_id + 1));
+    return array( 'status' => (!$result) ? 0 : 1 );
 }
-
 
 /*
  * Get timeline of $count most recent posts that were written before timestamp $start
@@ -87,14 +104,35 @@ function post_post($dbh, $title, $msg, $me) {
  * )
  * Each post should be of the form:
  * array(
- *		'pID' => (INTEGER)
- *		'username' => (USERNAME)
- *		'title' => (TITLE OF POST)
- *    'content' => (CONTENT OF POST)
- *		'time' => (UNIXTIME INTEGER)
+ *              'pID' => (INTEGER)
+ *              'username' => (USERNAME)
+ *              'title' => (TITLE OF POST)
+ *              'content' => (CONTENT OF POST)
+ *              'time' => (UNIXTIME INTEGER)
  * )
  */
 function get_timeline($dbh, $user, $count = 10, $start = PHP_INT_MAX) {
+    $query = <<<QUERY
+SELECT p.post_id, p.tstamp, p.username, p.title, p.bodytext
+FROM Post as p
+WHERE EXTRACT(EPOCH FROM p.tstamp) < $1
+ORDER BY p.tstamp DESC, p.username;
+QUERY;
+    $result = pg_query_params($dbh, $query, array($start));
+    if (!$result) {
+        return array( 'status' => 0, 'posts' => null );
+    }
+    $posts = array();
+    $i = 0;
+    while ($row = pg_fetch_array($result, $i, MYSQL_ASSOC)) {
+        $posts[] = array( 'pID' => $row['post_id'],
+                          'username' => $row['username'],
+                          'title' => $row['title'],
+                          'content' => $row['bodytext'],
+                          'time' => strtotime($row['tstamp']) );
+        $i++;
+    }
+    return array( 'status' => 1, 'posts' => $posts );
 }
 
 /*
@@ -281,7 +319,8 @@ CREATE TABLE Post (
     post_id INT NOT NULL,
     tstamp TIMESTAMP NOT NULL,
     username VARCHAR(32) NOT NULL,
-    bodytext VARCHAR(32) NOT NULL,
+    title VARCHAR(50) NOT NULL,
+    bodytext VARCHAR(150) NOT NULL,
     PRIMARY KEY(post_id)
 );
 QUERY;
