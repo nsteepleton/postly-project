@@ -1,9 +1,6 @@
 <?php
 
 include "config.php";
-/*
- * For all functions $dbh is a database connection
- */
 
 /*
  * @return handle to database connection
@@ -274,8 +271,8 @@ function reset_database($dbh) {
     $query_cleanup = 'DROP TABLE IF EXISTS Likes, Post, Users;';
     $query_users  = <<<QUERY
 CREATE TABLE Users (
-    username CHAR(50) NOT NULL,
-    password CHAR(50) NOT NULL,
+    username VARCHAR(32) NOT NULL,
+    password VARCHAR(32) NOT NULL,
     PRIMARY KEY (username)
 );
 QUERY;
@@ -283,14 +280,14 @@ QUERY;
 CREATE TABLE Post (
     post_id INT NOT NULL,
     tstamp TIMESTAMP NOT NULL,
-    username CHAR(50) NOT NULL,
-    bodytext CHAR(160) NOT NULL,
+    username VARCHAR(32) NOT NULL,
+    bodytext VARCHAR(32) NOT NULL,
     PRIMARY KEY(post_id)
 );
 QUERY;
     $query_likes = <<<QUERY
 CREATE TABLE Likes (
-    username CHAR(50) NOT NULL,
+    username VARCHAR(32) NOT NULL,
     post_id INT NOT NULL,
     PRIMARY KEY(username, post_id),
     FOREIGN KEY username REFERENCES Users ON DELETE CASCADE,

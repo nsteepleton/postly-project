@@ -12,5 +12,4 @@ if(isset($_GET['secret']) && $_GET['secret'] == "15415Reset") {
 	echo json_encode(array("status" => 0));
 }
 
-
 ?>
