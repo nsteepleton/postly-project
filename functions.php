@@ -89,14 +89,16 @@ QUERY;
 INSERT INTO Post
 VALUES ($4, now(), $3, $1, $2);
 QUERY;
-    $result = pg_query_params($dbh, $query, array($title, $msg, $me, $max_id + 1));
+    $result = pg_query_params($dbh, $query, array($title, $msg,
+                                                  $me, $max_id + 1));
     return array( 'status' => (!$result) ? 0 : 1 );
 }
 
 /*
- * Get timeline of $count most recent posts that were written before timestamp $start
- * For a user $user, the timeline should include all posts.
- * Order by time of the post (going backward in time), and break ties by sorting by the username alphabetically
+ * Get timeline of $count most recent posts that were written before
+ * timestamp $start For a user $user, the timeline should include all posts.
+ * Order by time of the post (going backward in time), and break ties
+ * by sorting by the username alphabetically
  * Return associative array of the form:
  * array(
  *		'status' => (1 for success and 0 for failure)
@@ -136,7 +138,8 @@ QUERY;
 }
 
 /*
- * Get list of $count most recent posts that were written by user $user before timestamp $start
+ * Get list of $count most recent posts that were written by user $user
+ * before timestamp $start
  * Order by time of the post (going backward in time)
  * Return associative array of the form:
  * array(
@@ -153,6 +156,28 @@ QUERY;
  * )
  */
 function get_user_posts($dbh, $user, $count = 10, $start = PHP_INT_MAX) {
+    $query = <<<QUERY
+SELECT p.post_id, p.tstamp, p.username, p.title, p.bodytext
+FROM Post as p
+WHERE p.username = $1 AND EXTRACT(EPOCH FROM p.tstamp) < $2
+ORDER BY p.tstamp DESC, p.username
+LIMIT $3;
+QUERY;
+    $result = pg_query_params($dbh, $query, array($user, $start, $count));
+    if (!$result) {
+        return array( 'status' => 0, 'posts' => null );
+    }   
+    $posts = array();
+    $i = 0;
+    while ($row = pg_fetch_array($result, $i, MYSQL_ASSOC)) {
+        $posts[] = array( 'pID' => $row['post_id'],
+                          'username' => $row['username'],
+                          'title' => $row['title'],
+                          'content' => $row['bodytext'],
+                          'time' => strtotime($row['tstamp']) );
+        $i++;
+    }   
+    return array( 'status' => 1, 'posts' => $posts );
 }
 
 /*
@@ -164,6 +189,25 @@ function get_user_posts($dbh, $user, $count = 10, $start = PHP_INT_MAX) {
  * )
  */
 function delete_post($dbh, $user, $pID) {
+    // Validates the deletion request
+    $query = <<<QUERY
+SELECT * FROM Post
+WHERE username = $1 AND post_id = $2;
+QUERY;
+    $result = pg_query_params($dbh, $query, array($user, $pID));
+    if (!$result) {
+        return array( 'status' => 0 );
+    }
+    else if (pg_num_rows($result) == 0) {
+        return array( 'status' => 2 );
+    }
+    // If request is valid (post exists, right ownership), delete
+    $query = <<<QUERY
+DELETE FROM Post
+WHERE username = $1 AND post_id = $2;
+QUERY;
+    $result = pg_query_params($dbh, $query, array($user, $pID));
+    return array( 'status' => (!$result) ? 0 : 1 );
 }
 
 /*
@@ -174,6 +218,12 @@ function delete_post($dbh, $user, $pID) {
  * )
  */
 function like_post($dbh, $me, $pID) {
+    $query = <<<QUERY
+INSERT INTO Likes
+VALUES ($1, $2);
+QUERY;
+    $result = pg_query_params($dbh, $query, array($me, $pID));
+    return array( 'status' => (!$result) ? 0 : 1 );
 }
 
 /*
@@ -181,6 +231,16 @@ function like_post($dbh, $me, $pID) {
  * Return true if user $me has liked post $pID or false otherwise
  */
 function already_liked($dbh, $me, $pID) {
+    $query = <<<QUERY
+SELECT * FROM Likes
+WHERE username = $1 AND post_id = $2;
+QUERY;
+    $result = pg_query_params($dbh, $query, array($me, $pID));
+    if (!$result) {
+        return false;
+    } else {
+        return pg_num_rows($result) != 0;
+    } 
 }
 
 /*
@@ -217,6 +277,20 @@ function user_search($dbh, $name) {
  * )
  */
 function get_num_likes($dbh, $pID) {
+    $query = <<<QUERY
+SELECT COUNT(*) FROM Likes
+WHERE post_id = $1;
+QUERY;
+    $result = pg_query_params($dbh, $query, array($pID));
+    if (!$result or pg_num_rows($result) == 0) {
+        return array( 'status' => 0, 'count' => null );
+    }
+    else {
+        $row = pg_fetch_array($result);
+        return array( 'status' => 1,
+                      'count' => $row['count']
+                    );
+    }
 }
 
 /*
@@ -228,6 +302,20 @@ function get_num_likes($dbh, $pID) {
  * )
  */
 function get_num_posts($dbh, $uID) {
+    $query = <<<QUERY
+SELECT COUNT(*) FROM Post
+WHERE username = $1;
+QUERY;
+    $result = pg_query_params($dbh, $query, array($uID));
+    if (!$result or pg_num_rows($result) == 0) {
+        return array( 'status' => 0, 'count' => null );
+    }
+    else {
+        $row = pg_fetch_array($result);
+        return array( 'status' => 1,
+                      'count' => $row['count']
+                    );
+    }
 }
 
 /*
@@ -239,6 +327,20 @@ function get_num_posts($dbh, $uID) {
  * )
  */
 function get_num_likes_of_user($dbh, $uID) {
+    $query = <<<QUERY
+SELECT COUNT(*) FROM Likes
+WHERE username = $1;
+QUERY;
+    $result = pg_query_params($dbh, $query, array($uID));
+    if (!$result or pg_num_rows($result) == 0) {
+        return array( 'status' => 0, 'count' => null );
+    }
+    else {
+        $row = pg_fetch_array($result);
+        return array( 'status' => 1,
+                      'count' => $row['count']
+                    );
+    }
 }
 
 /*
@@ -329,8 +431,8 @@ CREATE TABLE Likes (
     username VARCHAR(32) NOT NULL,
     post_id INT NOT NULL,
     PRIMARY KEY(username, post_id),
-    FOREIGN KEY username REFERENCES Users ON DELETE CASCADE,
-    FOREIGN KEY post_id REFERENCES Post ON DELETE CASCADE
+    FOREIGN KEY (username) REFERENCES Users ON DELETE CASCADE,
+    FOREIGN KEY (post_id) REFERENCES Post ON DELETE CASCADE
 );
 QUERY;
     $result = pg_query($dbh, $query_cleanup);
