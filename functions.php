@@ -13,7 +13,7 @@ function db_connect($host, $port, $db, $user, $pw) {
 
 /*
  * Close database connection
- */ 
+ */
 function close_db_connection($dbh) {
     pg_close($dbh);
 }
@@ -166,7 +166,7 @@ QUERY;
     $result = pg_query_params($dbh, $query, array($user, $start, $count));
     if (!$result) {
         return array( 'status' => 0, 'posts' => null );
-    }   
+    }
     $posts = array();
     $i = 0;
     while ($row = pg_fetch_array($result, $i, MYSQL_ASSOC)) {
@@ -176,7 +176,7 @@ QUERY;
                           'content' => $row['bodytext'],
                           'time' => strtotime($row['tstamp']) );
         $i++;
-    }   
+    }
     return array( 'status' => 1, 'posts' => $posts );
 }
 
@@ -250,7 +250,7 @@ QUERY;
         return false;
     } else {
         return pg_num_rows($result) != 0;
-    } 
+    }
 }
 
 /*
@@ -284,7 +284,7 @@ QUERY;
                           'content' => $row['bodytext'],
                           'time' => strtotime($row['tstamp']) );
         $i++;
-    }  
+    }
     return array( 'status' => 1, 'posts' => $posts );
 }
 
@@ -512,7 +512,7 @@ QUERY;
         return array( 'status' => 0, 'posts' => null );
     }
     $query = <<<QUERY
-SELECT p.post_id, p.tstamp, p.username, p.title, p.bodytext 
+SELECT p.post_id, p.tstamp, p.username, p.title, p.bodytext
 FROM Post AS p, recommended_posts AS r
 WHERE r.pid = p.post_id
 ORDER BY r.overlap DESC

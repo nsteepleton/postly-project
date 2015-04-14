@@ -15,4 +15,3 @@ $DB_PW = "yzong@andrew"; # DATABASE PASSWORD
 $salt = "15-501";
 
 ?>
-
