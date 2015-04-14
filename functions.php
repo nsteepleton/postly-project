@@ -478,6 +478,60 @@ QUERY;
  * )
  */
 function get_recommended_posts($dbh, $count = 10, $user) {
+    $escaped_user = pg_escape_string($dbh, $user);
+    $query_setup = <<<QUERY
+DROP VIEW IF EXISTS recommended_posts CASCADE;
+DROP VIEW IF EXISTS like_minded CASCADE;
+DROP VIEW IF EXISTS liked_post;
+CREATE VIEW liked_post(pid) AS
+    SELECT post_id FROM Likes
+    WHERE username = '{$escaped_user}';
+CREATE VIEW like_minded(username) AS
+    SELECT l.username FROM Likes AS l, liked_post AS p
+    WHERE l.post_id = p.pid AND l.username <> '{$escaped_user}'
+    GROUP BY l.username;
+CREATE VIEW recommended_posts(pid, overlap) AS
+    SELECT l.post_id, COUNT(*)
+    FROM Likes AS l, like_minded AS u
+    WHERE l.username = u.username
+      AND l.post_id <> ALL(SELECT pid FROM liked_post)
+      GROUP BY l.post_id;
+QUERY;
+    $result = pg_query($dbh, $query_setup);
+    if (!$result) {
+        return array( 'status' => 0, 'posts' => null );
+    }
+    $query = <<<QUERY
+SELECT p.post_id, p.tstamp, p.username, p.title, p.bodytext 
+FROM Post AS p, recommended_posts AS r
+WHERE r.pid = p.post_id
+ORDER BY r.overlap DESC
+LIMIT $1;
+QUERY;
+    $result = pg_query_params($dbh, $query, array($count));
+    if (!$result) {
+        return array( 'status' => 0, 'posts' => null );
+    }
+    $posts = array();
+    $i = 0;
+    while ($row = pg_fetch_array($result, $i, MYSQL_ASSOC)) {
+        $posts[] = array( 'pID' => $row['post_id'],
+                          'username' => $row['username'],
+                          'title' => $row['title'],
+                          'content' => $row['bodytext'],
+                          'time' => strtotime($row['tstamp']) );
+        $i++;
+    }
+    $query_cleanup = <<<QUERY
+DROP VIEW IF EXISTS recommended_posts CASCADE;
+DROP VIEW IF EXISTS like_minded CASCADE;
+DROP VIEW IF EXISTS liked_post;
+QUERY;
+    $result = pg_query($dbh, $query_cleanup);
+    if (!$result) {
+        return array( 'status' => 0, 'posts' => null );
+    }
+    return array( 'status' => 1, 'posts' => $posts );
 }
 
 /*
