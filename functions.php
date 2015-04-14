@@ -218,6 +218,16 @@ QUERY;
  * )
  */
 function like_post($dbh, $me, $pID) {
+    // First check if the post belongs to $me
+    $query = <<<QUERY
+SELECT * FROM Post
+WHERE username = $1 AND post_id = $2;
+QUERY;
+    $result = pg_query_params($dbh, $query, array($me, $pID));
+    if ((!$result) or pg_num_rows($result) > 0) {
+        return array( 'status' => 0 );
+    }
+    // If the user is not the post author, try to "like" it.
     $query = <<<QUERY
 INSERT INTO Likes
 VALUES ($1, $2);
