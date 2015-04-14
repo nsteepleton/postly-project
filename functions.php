@@ -253,6 +253,29 @@ QUERY;
  * )
  */
 function search($dbh, $key, $count = 50) {
+    $escaped_key = pg_escape_string($dbh, $key);
+    $query = <<<QUERY
+SELECT p.post_id, p.tstamp, p.username, p.title, p.bodytext
+FROM Post AS p
+WHERE p.bodytext LIKE '%{$escaped_key}%'
+ORDER BY p.tstamp DESC, p.username
+LIMIT $1;
+QUERY;
+    $result = pg_query_params($dbh, $query, array($count));
+    if (!$result) {
+        return array( 'status' => 0, 'posts' => null );
+    }
+    $posts = array();
+    $i = 0;
+    while ($row = pg_fetch_array($result, $i, MYSQL_ASSOC)) {
+        $posts[] = array( 'pID' => $row['post_id'],
+                          'username' => $row['username'],
+                          'title' => $row['title'],
+                          'content' => $row['bodytext'],
+                          'time' => strtotime($row['tstamp']) );
+        $i++;
+    }  
+    return array( 'status' => 1, 'posts' => $posts );
 }
 
 /*
@@ -265,6 +288,22 @@ function search($dbh, $key, $count = 50) {
  * )
  */
 function user_search($dbh, $name) {
+    $escaped_name = pg_escape_string($dbh, $name);
+    $query = <<<QUERY
+SELECT username FROM Users
+WHERE username LIKE '%{$escaped_name}%';
+QUERY;
+    $result = pg_query($dbh, $query);
+    if (!$result) {
+        return array( 'status' => 0, 'users' => null );
+    }
+    $users = array();
+    $i = 0;
+    while ($row = pg_fetch_array($result, $i, MYSQL_ASSOC)) {
+        $users[] = $row['username'];
+        $i++;
+    }
+    return array( 'status' => 1, 'users' => $users );
 }
 
 
@@ -353,6 +392,23 @@ QUERY;
  * )
  */
 function get_most_active_users($dbh, $count = 10) {
+    $query = <<<QUERY
+SELECT username FROM Post
+GROUP BY username
+ORDER BY COUNT(*) DESC, username
+LIMIT $1;
+QUERY;
+    $result = pg_query_params($dbh, $query, array($count));
+    if (!$result) {
+        return array( 'status' => 0, 'users' => null );
+    }
+    $users = array();
+    $i = 0;
+    while ($row = pg_fetch_array($result, $i, MYSQL_ASSOC)) {
+        $users[] = $row['username'];
+        $i++;
+    }
+    return array( 'status' => 1, 'users' => $users );
 }
 
 /*
@@ -365,14 +421,38 @@ function get_most_active_users($dbh, $count = 10) {
  * )
  * Each post should be of the form:
  * array(
- *		'pID' => (INTEGER)
- *		'username' => (USERNAME)
- *		'title' => (TITLE OF POST)
- *    'content' => (CONTENT OF POST)
- *		'time' => (UNIXTIME INTEGER)
+ *              'pID' => (INTEGER)
+ *              'username' => (USERNAME)
+ *              'title' => (TITLE OF POST)
+ *              'content' => (CONTENT OF POST)
+ *              'time' => (UNIXTIME INTEGER)
  * )
  */
 function get_most_popular_posts($dbh, $count = 10, $from = 0) {
+    $query = <<<QUERY
+SELECT p.post_id, p.tstamp, p.username, p.title, p.bodytext
+FROM Post AS p
+LEFT JOIN (SELECT post_id, COUNT(*) AS likes FROM Likes GROUP BY post_id)
+    AS LikeCount ON LikeCount.post_id = p.post_id
+WHERE EXTRACT(EPOCH FROM p.tstamp) > $1
+ORDER BY likecount.likes DESC NULLS LAST
+LIMIT $2;
+QUERY;
+    $result = pg_query_params($dbh, $query, array($from, $count));
+    if (!$result) {
+        return array( 'status' => 0, 'posts' => null );
+    }
+    $posts = array();
+    $i = 0;
+    while ($row = pg_fetch_array($result, $i, MYSQL_ASSOC)) {
+        $posts[] = array( 'pID' => $row['post_id'],
+                          'username' => $row['username'],
+                          'title' => $row['title'],
+                          'content' => $row['bodytext'],
+                          'time' => strtotime($row['tstamp']) );
+        $i++;
+    }
+    return array( 'status' => 1, 'posts' => $posts );
 }
 
 /*
@@ -390,11 +470,11 @@ function get_most_popular_posts($dbh, $count = 10, $from = 0) {
  * )
  * Each post should be of the form:
  * array(
- *		'pID' => (INTEGER)
- *		'username' => (USERNAME)
- *		'title' => (TITLE OF POST)
- *    'content' => (CONTENT OF POST)
- *		'time' => (UNIXTIME INTEGER)
+ *              'pID' => (INTEGER)
+ *              'username' => (USERNAME)
+ *              'title' => (TITLE OF POST)
+ *              'content' => (CONTENT OF POST)
+ *              'time' => (UNIXTIME INTEGER)
  * )
  */
 function get_recommended_posts($dbh, $count = 10, $user) {
